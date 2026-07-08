@@ -49,14 +49,14 @@ if __name__ == "__main__":
     neg_spectra = parse_msp("lipidblast_negative.msp")
     print(f"Parsed {len(neg_spectra)} spectra.")
 
-    # Step 2: Build the search index (once)
+    # Build the search index (once)
     entropy_search = FlashEntropySearch()
     spectral_library_new = entropy_search.build_index(neg_spectra)
     print(f"Index built. Re-sorted library has {len(spectral_library_new)} entries.")
 
-  #search the first 5 real spectra against the whole library- each compared with th eentire library- should return 1 first as it 
+    # search the first 5 real spectra against the whole library- each compared with th eentire library- should return 1 first as it 
     # would be comapred to itself; in each iteration the " lookalikes"- as in the ones which result in more than 0.7 would be taken into account
-    for i in range(len(neg_spectra)):
+    for i in range(10000):
         query = spectral_library_new[i]
         result = entropy_search.search(
             precursor_mz=query["precursor_mz"],
