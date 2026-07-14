@@ -22,9 +22,13 @@ def parse_msp(filepath):#Parsing func to dictionaries
                 key, _, value = line.partition(':')
                 key = key.strip().lower()
                 value = value.strip()
-
                 if key == "precursormz":
                     current["precursor_mz"] = float(value)
+                elif key == "retentiontime":
+                    try:
+                        current["retention_time"] = float(value)
+                    except ValueError:
+                        current["retention_time"] = None
                 else:
                     current[key] = value
 
@@ -43,7 +47,7 @@ def parse_msp(filepath):#Parsing func to dictionaries
 
     return spectra
 from ms_entropy import FlashEntropySearch
-
+import json
 # --- MAIN ---
 if __name__ == "__main__":
     neg_spectra = parse_msp("lipidblast_negative.msp")
@@ -56,8 +60,13 @@ if __name__ == "__main__":
 
     # search the first 5 real spectra against the whole library- each compared with th eentire library- should return 1 first as it 
     # would be comapred to itself; in each iteration the " lookalikes"- as in the ones which result in more than 0.7 would be taken into account
+    MZ_TOLERANCE = 1.0
+    RT_TOLERANCE = 2.0
+    all_results = {}
     for i in range(10000):
         query = spectral_library_new[i]
+        query_mz = query["precursor_mz"]
+        query_rt = query.get("retention_time")
         result = entropy_search.search(
             precursor_mz=query["precursor_mz"],
             peaks=query["peaks"]
@@ -66,11 +75,28 @@ if __name__ == "__main__":
         open_scores = result["open_search"]
 
         print(f"\nQuery #{i}: {query.get('name', 'unknown')}")
+        matches_for_this_query = []
         #print(f"  Score against itself (should be ~1.0): {open_scores[i]:.4f}")
 
         # look for other spectra with a suspiciously high score- wconsidering high score is above 0.7 on a scale on 0-1
         for j, score in enumerate(open_scores):
+            candidate = spectral_library_new[j]
+            candidate_mz = candidate["precursor_mz"]
+            candidate_rt = candidate.get("retention_time")
             if (j != i) and (score >= 0.7 and score!=
-                             1.0):# lowkey due to duplicates added restriction
+                             1.0) and abs(candidate_mz - query_mz) <= MZ_TOLERANCE and (query_rt is None or candidate_rt is None or abs(candidate_rt - query_rt) <= RT_TOLERANCE):# lowkey due to duplicates added restriction
                 print(f"  Possible lookalike: {spectral_library_new[j].get('name')} "
                       f"(score={score:.4f})")
+                matches_for_this_query.append({
+    "name": candidate.get("name"),
+    "score": float(score)
+})
+
+        if matches_for_this_query:
+            all_results[query.get("name", str(i))] = matches_for_this_query
+
+    with open("lookalikes_negative_test10000.json", "w") as f:
+        json.dump(all_results, f, indent=2)
+
+    print(f"\nDone. Found lookalikes for {len(all_results)} out of 10000 queries.")
+    print("Saved to lookalikes_negative_test10000.json")
